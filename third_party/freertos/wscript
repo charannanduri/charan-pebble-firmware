@@ -38,6 +38,7 @@ def build(bld):
 
     bld.stlib(source=freertos_sources,
               target='freertos',
+              features=['c', 'cstlib'],
               use=['pblibc',
                    'fw_includes',
                    'freertos_includes'],

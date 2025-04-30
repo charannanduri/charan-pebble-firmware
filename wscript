@@ -26,6 +26,22 @@ import waftools.xcode_pebble
 
 LOGHASH_OUT_PATH = 'src/fw/loghash_dict.json'
 
+# Helper to run idf.py commands
+def _run_idf_cmd(ctx, idf_cmd_args):
+    if not ctx.env.IDF_PROJECT_PATH:
+        ctx.fatal('IDF_PROJECT_PATH not set in environment. Configure first.')
+    
+    cmd = ['idf.py'] + idf_cmd_args
+    Logs.pprint('YELLOW', f'Running ESP-IDF command: {" ".join(cmd)}')
+    
+    # Run idf.py from the project directory
+    # Use exec_command which handles errors and output better
+    ret = ctx.exec_command(cmd, cwd=ctx.env.IDF_PROJECT_PATH)
+    if ret != 0:
+        ctx.fatal(f'ESP-IDF command failed: {" ".join(cmd)}')
+    return ret
+
+
 def truncate(msg):
     if msg is None:
         return msg
@@ -81,7 +97,9 @@ def options(opt):
                              'robert_bb2',
                              'robert_evt',
                              'robert_es',
-                             'asterix',],
+                             'asterix',
+                             'esp32s3_generic', # Add the new board name here
+                             ],
                    help='Which board we are targeting '
                         'bb2, snowy_dvt, spalding, silk...')
     opt.add_option('--jtag', action='store', default=None, dest='jtag',  # default is bb2 (below)
@@ -336,6 +354,60 @@ def handle_configure_options(conf):
     if not conf.options.mfg and not conf.options.no_pulse_everywhere:
         conf.env.append_value('DEFINES', 'PULSE_EVERYWHERE=1')
 
+def _create_esp32_env(conf):
+    Logs.pprint('CYAN', 'Configuring ESP32S3 environment')
+    # Set toolchain prefix (Ensure xtensa-esp32s3-elf-* tools are in PATH)
+    toolchain_prefix = 'xtensa-esp32s3-elf-'
+    try:
+        conf.find_program(toolchain_prefix + 'gcc', var='CC', mandatory=True)
+        conf.find_program(toolchain_prefix + 'g++', var='CXX', mandatory=True) # Assuming C++ might be needed
+        conf.env.AS = conf.env.CC
+        for tool in ['ar', 'objcopy', 'ld']:
+            conf.find_program(toolchain_prefix + tool, var=tool.upper(), mandatory=True)
+    except conf.errors.ConfigurationError as e:
+        conf.fatal(f"Xtensa toolchain '{toolchain_prefix}*' not found. "
+                   f"Please ensure ESP-IDF tools are installed and in your PATH. Error: {e}")
+
+
+    # Define flags (Adjust as necessary based on ESP-IDF and project needs)
+    # Common ESP32 flags: -mlongcalls is crucial for Xtensa
+    CPU_FLAGS = ['-mlongcalls', '-ffunction-sections', '-fdata-sections']
+    OPT_FLAGS = ['-Os', '-fmessage-length=0'] # Optimization level Size
+    if not conf.options.no_debug:
+        OPT_FLAGS += ['-g3', '-ggdb'] # Debug flags
+
+    # Replicate common C flags from ARM env, adjust warnings if needed
+    C_FLAGS = ['-std=c11',
+               '-Wall', '-Wextra', '-Werror',
+               '-Wno-unused-parameter', '-Wno-missing-field-initializers',
+               '-Wno-error=unused-parameter', '-Wno-error=unused-const-variable',
+               '-Wno-packed-bitfield-compat', '-Wno-address-of-packed-member',
+               '-Wno-expansion-to-defined', '-Wno-enum-int-mismatch',
+               '-Wno-enum-conversion',
+               '-ffreestanding',
+               '-Wno-error=maybe-uninitialized', # Common Xtensa GCC warning
+               ]
+    # Add C++ flags if project uses C++ extensively
+    CXX_FLAGS = [ '-std=c++11', '-fno-rtti', '-fno-exceptions' ]
+
+    conf.env.append_unique('CFLAGS', CPU_FLAGS + OPT_FLAGS + C_FLAGS)
+    conf.env.append_unique('CXXFLAGS', CPU_FLAGS + OPT_FLAGS + CXX_FLAGS)
+
+    ASFLAGS = ['-x', 'assembler-with-cpp', '-mlongcalls']
+    conf.env.append_unique('ASFLAGS', ASFLAGS + CPU_FLAGS + OPT_FLAGS)
+
+    LINKFLAGS = ['-nostdlib',
+                 '-Wl,--gc-sections',
+                 '-Wl,--cref',
+                 '-mlongcalls',
+                ]
+    conf.env.append_unique('LINKFLAGS', LINKFLAGS + CPU_FLAGS + OPT_FLAGS)
+
+    # Load Waf tools for the Xtensa toolchain
+    conf.load('gcc g++ gas objcopy ar ldscript') # Add g++
+    conf.load('file_name_c_define')
+
+
 def _create_cm0_env(conf):
     prev_env = conf.env
     prev_variant = conf.variant
@@ -456,6 +528,9 @@ def configure(conf):
     elif conf.is_cutts() or conf.is_robert():
         conf.env.PLATFORM_NAME = 'emery'
         conf.env.MIN_SDK_VERSION = 3
+    elif conf.is_esp32s3():
+        conf.env.PLATFORM_NAME = 'esp32s3'
+        conf.env.MIN_SDK_VERSION = 2
     else:
         conf.fatal('No platform specified for {}!'.format(conf.options.board))
 
@@ -470,6 +545,8 @@ def configure(conf):
         conf.env.MICRO_FAMILY = 'STM32F7'
     elif conf.is_asterix():
         conf.env.MICRO_FAMILY = 'NRF52840'
+    elif conf.is_esp32s3():
+        conf.env.MICRO_FAMILY = 'ESP32S3'
     else:
         conf.fatal('No micro family specified for {}!'.format(conf.options.board))
 
@@ -489,7 +566,9 @@ def configure(conf):
     conf.recurse('sdk')
 
     conf.recurse('bin/boot')
-    waftools.openocd.write_cfg(conf)
+    # Only write OpenOCD config for supported (ARM) families
+    if not conf.is_esp32s3():
+        waftools.openocd.write_cfg(conf)
 
     # Save a baseline environment that we'll use for unit tests
     # Detach so operations against conf.env don't affect unit_test_env
@@ -527,13 +606,28 @@ def configure(conf):
 
     conf.recurse('src/bluetooth-fw')
 
-    Logs.pprint('CYAN', 'Configuring arm_firmware environment')
+    Logs.pprint('CYAN', 'Configuring target environment') # Changed log message
     conf.setenv('', base_env)
-    conf.load('pebble_arm_gcc', tooldir='waftools')
+    # Conditionally load toolchain or check for idf.py
+    if conf.is_esp32s3():
+        # Check if idf.py is available
+        try:
+            conf.find_program('idf.py', mandatory=True)
+            Logs.pprint('GREEN', 'Found idf.py, ESP-IDF build system will be used.')
+            # Store path to IDF project for build steps
+            conf.env.IDF_PROJECT_PATH = conf.path.make_node('platform/esp32s3/idf_project').abspath()
+        except conf.errors.ConfigurationError as e:
+            conf.fatal(f"idf.py not found. Please ensure ESP-IDF is installed "
+                       f"and its export.sh script has been sourced. Error: {e}")
+        # No specific Waf toolchain configuration needed for ESP-IDF
+    else:
+        # Assume ARM for all other existing platforms
+        Logs.pprint('CYAN', 'Configuring arm_firmware environment')
+        conf.load('pebble_arm_gcc', tooldir='waftools')
+        conf.setenv('arm_prf_mode', env=conf.env)
+        conf.env.append_value('DEFINES', ['RECOVERY_FW'])
 
-    conf.setenv('arm_prf_mode', env=conf.env)
-    conf.env.append_value('DEFINES', ['RECOVERY_FW'])
-
+    # Configure unit test environment (keep this)
     Logs.pprint('CYAN', 'Configuring unit test environment')
     conf.setenv('local', unit_test_env)
 
@@ -677,6 +771,14 @@ def build(bld):
 
     if bld.variant in ('test', 'test_rocky_emx', 'applib'):
         bld.set_env(bld.all_envs['local'])
+
+    # --- ESP32 Build Redirect ---
+    if bld.is_esp32s3():
+        Logs.pprint('CYAN', 'ESP32 Target: Redirecting build to ESP-IDF')
+        _run_idf_cmd(bld, ['build'])
+        # Stop Waf build process here for ESP32
+        return
+    # --- End ESP32 Redirect ---
 
     bld.load('file_name_c_define', tooldir='waftools')
 
@@ -1223,6 +1325,21 @@ class ConsoleCommand(BuildContext):
     cmd = 'console'
     fun = 'console'
 
+    def execute(self):
+        if self.is_esp32s3():
+            Logs.pprint('CYAN', 'ESP32 Target: Redirecting console to ESP-IDF monitor')
+            # For monitor, we use os.system because exec_command waits for completion
+            idf_project_path = self.env.IDF_PROJECT_PATH
+            if not idf_project_path:
+                self.fatal('IDF_PROJECT_PATH not set in environment. Configure first.')
+            cmd = f'cd "{idf_project_path}" && idf.py monitor'
+            ret = os.system(cmd)
+            if ret != 0:
+                self.fatal('ESP-IDF monitor command failed')
+            return ret
+        else:
+            # Call original console function
+            console(self)
 
 def console(ctx):
     """Starts miniterm with the serial console."""
@@ -1392,43 +1509,7 @@ class QemuGdb(BuildContext):
     fun = 'qemu_gdb'
 
 
-def qemu_gdb(ctx):
-    # First, startup the gdb proxy
-    cmd_line = "python ./tools/qemu/qemu_gdb_proxy.py --port=1233 --target=localhost:1234"
-    proc = pexpect.spawn(cmd_line, logfile=sys.stdout, encoding='utf-8')
-    proc.expect(["Connected to target", pexpect.TIMEOUT], timeout=10)
-    fw_elf = ctx.get_tintin_fw_node().change_ext('.elf')
-    run_arm_gdb(ctx, fw_elf, target_server_port=1233)
-
-
-class QemuGdbBoot(BuildContext):
-    """ Starts up a gdb instance to talk to the emulator's boot ROM """
-    cmd = 'qemu_gdb_boot'
-    fun = 'qemu_gdb_boot'
-
-
-def qemu_gdb_boot(ctx):
-    boot_elf = ctx.get_tintin_boot_node().change_ext('.elf')
-    run_arm_gdb(ctx, boot_elf, target_server_port=1234)
-
-
-class debug(BuildContext):
-    """ Alias for gdb """
-    cmd = 'debug'
-
-    def execute_build(ctx):
-        gdb(ctx)
-
-
-class Gdb(BuildContext):
-    """ Starts GDB and openocd (if not already running) and attaches GDB to
-        openocd's GDB server. If openocd is already running, it will be used.
-    """
-    cmd = 'gdb'
-    fun = 'gdb'
-
-
-def gdb(ctx, fw_elf=None, cfg_file='openocd.cfg', is_ble=False):
+def qemu_gdb(ctx, fw_elf=None, cfg_file='openocd.cfg', is_ble=False):
     if fw_elf is None:
         fw_elf = ctx.get_tintin_fw_node().change_ext('.elf')
     with waftools.openocd.daemon(ctx, cfg_file,
@@ -1620,6 +1701,18 @@ class FlashCommand(BuildContext):
     cmd = 'flash'
     fun = 'flash'
 
+    def execute(self):
+        if self.is_esp32s3():
+            Logs.pprint('CYAN', 'ESP32 Target: Redirecting flash to ESP-IDF')
+            # Add tty option if provided
+            flash_args = ['flash']
+            if self.options.tty:
+                flash_args.extend(['-p', self.options.tty])
+            _run_idf_cmd(self, flash_args)
+            return # Prevent calling original flash function
+        else:
+             # Call original flash function
+             flash(self)
 
 def flash(ctx):
     flash_everything(ctx, ctx.get_tintin_fw_node())

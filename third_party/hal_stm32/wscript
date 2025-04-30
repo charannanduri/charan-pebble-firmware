@@ -34,6 +34,7 @@ def build(bld):
 
     bld.stlib(source=micro_sources,
               target='stm32_stdlib',
+              features=['c', 'cstlib'],
               use=['cmsis_core', 'pblibc'],
               includes=micro_includes,
               export_includes=micro_includes)

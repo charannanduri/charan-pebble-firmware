@@ -103,6 +103,36 @@ emery_platform = {
              "compass", "200w", "228h"]
 }
 
+# Define platform specifics for ESP32S3
+esp32s3_platform = {
+    "NAME": "esp32s3",
+    # Set placeholder sizes - adjust based on actual partitioning and RAM
+    "MAX_APP_BINARY_SIZE": 0x40000,  # 256K (Example)
+    "MAX_APP_MEMORY_SIZE": 0x20000,  # 128K (Example)
+    "MAX_WORKER_MEMORY_SIZE": 0x2800,  # 10K (Example)
+    "MAX_RESOURCES_SIZE_APPSTORE": 0x80000,  # 512K (Example)
+    "MAX_RESOURCES_SIZE": 0x100000, # 1024K (Example)
+    # Define features based on ESP32S3 and intended peripherals
+    "DEFINES": ["PBL_PLATFORM_ESP32S3", # Platform identifier
+                "PBL_COLOR",            # Assume color display
+                "PBL_RECT",             # Assume rectangular display
+                # Add defines for specific hardware features if known/intended:
+                # "PBL_MICROPHONE",
+                # "PBL_HEALTH",
+                # "PBL_COMPASS",
+                # "PBL_DISPLAY_WIDTH=320", # Example screen width
+                # "PBL_DISPLAY_HEIGHT=240", # Example screen height
+                ],
+    "BUILD_DIR": "esp32s3",
+    "BUNDLE_BIN_DIR": "esp32s3", # Used for SDK tools, may not be relevant initially
+    "ADDITIONAL_TEXT_LINES_FOR_PEBBLE_H": [],
+    "MAX_FONT_GLYPH_SIZE": 320, # Example based on Emery
+    # Define tags for SDK filtering
+    "TAGS": ["esp32s3", "color", "rect",
+             # Add other relevant tags based on DEFINES above
+             # "mic", "health", "compass", "320w", "240h"
+            ]
+}
 
 pebble_platforms = {
     "emery": emery_platform,
@@ -110,6 +140,7 @@ pebble_platforms = {
     "chalk": chalk_platform,
     "basalt": basalt_platform,
     "aplite": aplite_platform,
+    "esp32s3": esp32s3_platform,
 }
 
 

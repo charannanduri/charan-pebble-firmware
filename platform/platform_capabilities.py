@@ -255,17 +255,20 @@ board_capability_dicts = [
         }
     },
     {
-        'boards': [ 'asterix' ],
+        'boards': ['asterix'],
         'capabilities':
         {
+            'HAS_ACCESSORY_CONNECTOR',
             'HAS_APP_GLANCES',
+            'HAS_BUILTIN_HRM',
             'HAS_CORE_NAVIGATION4',
+            'HAS_HARDWARE_PANIC_SCREEN',
             'HAS_HEALTH_TRACKING',
             'HAS_JAVASCRIPT',
             'HAS_LAUNCHER4',
-            # 'HAS_MAPPABLE_FLASH' -- TODO: PBL-33860 verify memory-mappable flash works on silk before activating
-            # 'HAS_MICROPHONE',
-            # 'USE_PARALLEL_FLASH' -- FIXME hack to get the "modern" flash layout. Fix when we add support for new flash
+            # 'HAS_MAPPABLE_FLASH' -- TODO: PBL-33860 verify memory-mappable flash works on asterix before activating
+            'HAS_MICROPHONE',
+            'HAS_PMIC',
             'HAS_SDK_SHELL4',
             'HAS_SPRF_V3',
             'HAS_TEMPERATURE',
@@ -273,8 +276,43 @@ board_capability_dicts = [
             'HAS_VIBE_SCORES',
             'HAS_WEATHER',
             'HAS_PUTBYTES_PREACKING',
-            # 'HAS_MAGNETOMETER',
-            'HAS_PMIC',
+        },
+    },
+    {
+        # Minimal capabilities for a generic ESP32-S3 dev board
+        'boards': ['esp32s3_generic'],
+        'capabilities':
+        {
+            # Enable standard features we likely want
+            'HAS_JAVASCRIPT',        # Assume JS support is desired
+            'HAS_SDK_SHELL4',        # Use the modern SDK shell
+            'HAS_CORE_NAVIGATION4',  # Use modern navigation
+            'HAS_LAUNCHER4',         # Use modern launcher
+
+            # Most other hardware features are specific to Pebble HW or need porting:
+            # 'COMPOSITOR_USES_DMA',       # Depends on display driver
+            # 'HAS_ACCESSORY_CONNECTOR',   # Pebble specific
+            # 'HAS_APPLE_MFI',           # Pebble specific
+            # 'HAS_APP_GLANCES',         # Depends on UI framework integration
+            # 'HAS_BUILTIN_HRM',         # Depends on sensor hardware
+            # 'HAS_DEFECTIVE_FW_CRC',      # Legacy Pebble issue
+            # 'HAS_GLYPH_BITMAP_CACHING',  # Depends on graphics implementation
+            # 'HAS_HARDWARE_PANIC_SCREEN', # Needs implementation
+            # 'HAS_HEALTH_TRACKING',     # Depends on sensors/algorithms
+            # 'HAS_LED',                 # Depends on specific board HW
+            # 'HAS_MAGNETOMETER',        # Depends on sensor hardware
+            # 'HAS_MAPPABLE_FLASH',        # Depends on memory map/linker script
+            # 'HAS_MASKING',             # Depends on graphics implementation
+            # 'HAS_MICROPHONE',          # Depends on specific board HW
+            # 'HAS_PMIC',                # Depends on power management HW
+            # 'HAS_SPRF_V3',             # Related to Pebble recovery firmware
+            # 'HAS_TEMPERATURE',         # Depends on sensor hardware
+            # 'HAS_TIMELINE_PEEK',       # UI feature
+            # 'HAS_TOUCHSCREEN',         # Disabled in platform/wscript already
+            # 'HAS_VIBE_SCORES',         # Depends on vibe motor HW/driver
+            # 'HAS_WEATHER',             # UI feature, needs backend
+            # 'USE_PARALLEL_FLASH',      # Flash interface specific
+            # 'HAS_PUTBYTES_PREACKING',    # Communication protocol feature
         },
     },
 ]
