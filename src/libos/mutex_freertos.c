@@ -19,8 +19,16 @@
 #include "os/malloc.h"
 #include "os/mutex.h"
 #include "os/tick.h"
+#include "os/os_common.h"
 
+#ifdef PLATFORM_ESP32S3
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#else
 #include "FreeRTOS.h"
+#include "semphr.h"
+#endif
+
 #include "light_mutex.h"
 #include "task.h"
 

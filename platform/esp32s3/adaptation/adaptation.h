@@ -5,12 +5,35 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+// PebbleOS Logging interface
+typedef enum {
+    PEBBLE_LOG_LEVEL_ERROR,
+    PEBBLE_LOG_LEVEL_WARNING,
+    PEBBLE_LOG_LEVEL_INFO,
+    PEBBLE_LOG_LEVEL_DEBUG,
+    PEBBLE_LOG_LEVEL_VERBOSE
+} pebble_log_level_t;
+
+void pebble_log_message(pebble_log_level_t level, const char *tag, const char *format, ...);
+
 // Hardware initialization
 void adaptation_init(void);
 
 // Display interface
+// Forward declare DisplayRow - Needed by callback types defined in Pebble headers
+struct DisplayRow;
+
+// Define callback types matching PebbleOS (REMOVED - Use definitions from Pebble headers)
+// typedef bool (*NextRowCallback)(struct DisplayRow* row);
+// typedef void (*UpdateCompleteCallback)(void);
+
+// Define function pointer types explicitly for the function declaration
+typedef bool (*AdaptationNextRowCallback)(struct DisplayRow* row);
+typedef void (*AdaptationUpdateCompleteCallback)(void);
+
 void display_init(void);
-void display_update(void);
+// Update signature to use the explicit types (or assume Pebble types are in scope)
+void adaptation_display_update(AdaptationNextRowCallback nrcb, AdaptationUpdateCompleteCallback uccb);
 void display_clear(void);
 
 // Button interface

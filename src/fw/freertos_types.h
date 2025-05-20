@@ -16,12 +16,22 @@
 
 #pragma once
 
+#ifndef ESP_PLATFORM // Only define these if not building with ESP-IDF
 
+// Dummy definitions of RTOS types for cases where we don't have the real ones (e.g. unit tests)
+
+// FIXME: PBL-21049 Fix platform abstraction and board definition scheme
+
+// This file gets included in syscall/syscall.h before FreeRTOS.h gets included
+// These types are used in syscall handler definitions, so we need to define them here
+// They should match the real FreeRTOS definitions
 typedef void * QueueHandle_t;
 
 typedef QueueHandle_t SemaphoreHandle_t;
 
 typedef void * TaskHandle_t;
+
+#endif // ESP_PLATFORM
 
 typedef void (*TaskFunction_t)( void * );
 

@@ -14,7 +14,16 @@
  * limitations under the License.
  */
 
+#include "libos/tick.h"
+
+#ifdef PLATFORM_ESP32S3
+#include "freertos/FreeRTOS.h"
+#include "freertos/timers.h"
+#else
 #include "FreeRTOS.h"
+#include "timers.h"
+#endif
+
 #include "portmacro.h"
 
 #include <stdint.h>

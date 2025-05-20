@@ -7,6 +7,7 @@
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include "led_strip.h"
+#include <stdarg.h> // Needed for va_list
 
 static const char *TAG = "Adaptation";
 
@@ -25,6 +26,31 @@ static void (*button_callbacks[4])(void) = {NULL, NULL, NULL, NULL};
 
 // Timer handle
 static esp_timer_handle_t timer_handle = NULL;
+
+// --- Logging ---
+
+void pebble_log_message(pebble_log_level_t level, const char *tag, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    // Map Pebble log level to ESP log level
+    esp_log_level_t esp_level;
+    switch (level) {
+        case PEBBLE_LOG_LEVEL_ERROR:   esp_level = ESP_LOG_ERROR;   break;
+        case PEBBLE_LOG_LEVEL_WARNING: esp_level = ESP_LOG_WARN;    break;
+        case PEBBLE_LOG_LEVEL_INFO:    esp_level = ESP_LOG_INFO;    break;
+        case PEBBLE_LOG_LEVEL_DEBUG:   esp_level = ESP_LOG_DEBUG;   break;
+        case PEBBLE_LOG_LEVEL_VERBOSE: esp_level = ESP_LOG_VERBOSE; break;
+        default:                       esp_level = ESP_LOG_INFO;    break;
+    }
+
+    // Use ESP-IDF's vprintf logging
+    esp_log_writev(esp_level, tag ? tag : "Pebble", format, args); // Use default tag if NULL
+
+    va_end(args);
+}
+
+// --- Initialization ---
 
 void adaptation_init(void) {
     ESP_LOGI(TAG, "Initializing adaptation layer");
@@ -81,8 +107,20 @@ void display_init(void) {
     ESP_LOGI(TAG, "Display initialized");
 }
 
-void display_update(void) {
+void adaptation_display_update(AdaptationNextRowCallback nrcb, AdaptationUpdateCompleteCallback uccb) {
     // TODO: Update display with current framebuffer
+    // This implementation will need to call nrcb to get each row's data
+    // and then call uccb when the update is complete.
+    ESP_LOGW(TAG, "adaptation_display_update: Not implemented!");
+    // Example structure (needs actual hardware implementation):
+    // struct DisplayRow row_data;
+    // while (nrcb(&row_data)) {
+    //     // Send row_data.row_index, row_data.data to display
+    // }
+    // // Signal display update completion if necessary
+    // if (uccb) {
+    //     uccb();
+    // }
 }
 
 void display_clear(void) {

@@ -57,6 +57,20 @@
 #define DSTID_BRAZIL 6
 #define DSTID_LORDHOWE 20
 
+//! Enumeration of each day of the week. (Moved outside #ifndef ESP_PLATFORM)
+//! @ingroup Foundation
+//! @addtogroup Time
+//! @{
+typedef enum DayInWeek {
+  Sunday = 0,
+  Monday,
+  Tuesday,
+  Wednesday,
+  Thursday,
+  Friday,
+  Saturday,
+} DayInWeek;
+//! @}
 
 //! @file time.h
 
@@ -72,45 +86,91 @@
 //! https://sourceware.org/newlib/libc.html#Timefns
 //! @{
 
+#ifndef ESP_PLATFORM // Avoid conflicts with standard time.h when using ESP-IDF
+#include <stddef.h>
+#include <sys/types.h>
+#include <stdbool.h>
 
-//! structure containing broken-down time for expressing calendar time
-//! (ie. Year, Month, Day of Month, Hour of Day) and timezone information
+//! Define POSIX standard types first
+//! @todo Note that these types are actually defined by the newlib C library (libc) that we include
+//!       This should eventually be replaced by including the appropriate standard header
+typedef long long time_t;
+#ifndef _SUSECONDS_T_DECLARED
+typedef long suseconds_t;
+#define _SUSECONDS_T_DECLARED
+#endif
+#ifndef __clockid_t_defined
+typedef int clockid_t;
+#define __clockid_t_defined 1
+#endif
+#ifndef __timer_t_defined
+typedef int timer_t;
+#define __timer_t_defined 1
+#endif
+
 struct tm {
-  int tm_sec;     /*!< Seconds. [0-60] (1 leap second) */
-  int tm_min;     /*!< Minutes. [0-59] */
-  int tm_hour;    /*!< Hours.  [0-23] */
-  int tm_mday;    /*!< Day. [1-31] */
-  int tm_mon;     /*!< Month. [0-11] */
-  int tm_year;    /*!< Years since 1900 */
-  int tm_wday;    /*!< Day of week. [0-6] */
-  int tm_yday;    /*!< Days in year.[0-365] */
-  int tm_isdst;   /*!< DST. [-1/0/1] */
+    int tm_sec;     /* seconds after the minute - [0,59] */
+    int tm_min;     /* minutes after the hour - [0,59] */
+    int tm_hour;    /* hours since midnight - [0,23] */
+    int tm_mday;    /* day of the month - [1,31] */
+    int tm_mon;     /* months since January - [0,11] */
+    int tm_year;    /* years since 1900 */
+    int tm_wday;    /* days since Sunday - [0,6] */
+    int tm_yday;    /* days since January 1 - [0,365] */
+    int tm_isdst;   /* daylight savings time flag */
 
-  int tm_gmtoff;  /*!< Seconds east of UTC */
-  char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
+    int tm_gmtoff;  /*!< Seconds east of UTC */
+    char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
 };
 
-//! Enumeration of each day of the week.
-typedef enum DayInWeek {
-  Sunday = 0,
-  Monday,
-  Tuesday,
-  Wednesday,
-  Thursday,
-  Friday,
-  Saturday,
-} DayInWeek;
+struct timespec {
+    time_t tv_sec;
+    long   tv_nsec;
+};
 
-//! Obtain the number of seconds and milliseconds part since the epoch.
-//!   This is a non-standard C function provided for convenience.
-//! @param tloc Optionally points to an address of a time_t variable to store the time in.
-//!   You may pass NULL into tloc if you don't need a time_t variable to be set
-//!   with the seconds since the epoch
-//! @param out_ms Optionally points to an address of a uint16_t variable to store the
-//!   number of milliseconds since the last second in.
-//!   If you only want to use the return value, you may pass NULL into out_ms instead
-//! @return The number of milliseconds since the last second
-uint16_t time_ms(time_t *tloc, uint16_t *out_ms);
+struct itimerspec {
+    struct timespec it_interval;
+    struct timespec it_value;
+};
+
+#ifndef _STRUCT_TIMEVAL
+#define _STRUCT_TIMEVAL
+struct timeval {
+  time_t      tv_sec;     /* seconds */
+  suseconds_t tv_usec;    /* microseconds */
+};
+#endif /* _STRUCT_TIMEVAL */
+
+//! @addtogroup Foundation
+//! @{
+//!   @addtogroup Time Time
+//!   @{
+
+// Standard functions
+
+//! Converts the date and time representation in tm into a calendar time representation.
+struct tm *localtime(const time_t *timep);
+
+//! Converts the calendar time pointed to by timep into a date and time representation.
+struct tm *gmtime(const time_t *timep);
+
+//! Converts the date and time representation in tm into a null-terminated string with a specific format fmt.
+size_t strftime(char *s, size_t max, const char *fmt, const struct tm *tm);
+
+//! Converts the date and time representation in tm into a calendar time representation.
+time_t mktime(struct tm *tb);
+
+struct tm *gmtime_r(const time_t *timep, struct tm *result);
+
+struct tm *localtime_r(const time_t *timep, struct tm *result);
+
+#endif // ESP_PLATFORM
+
+// Non-standard functions (These should be kept outside the #ifndef)
+
+//! Returns the current calendar time split into seconds and milliseconds parts.
+//! Based on gettimeofday from sys/time.h.
+void time_ms(time_t *seconds, uint16_t *milliseconds);
 
 //!   @} // end addtogroup StandardTime
 //! @} // end addtogroup StandardC
