@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "board_tdeck_pro.h"
 
 // PebbleOS Logging interface
 typedef enum {
@@ -75,4 +76,4 @@ bool sensors_get_mag_data(int16_t* x, int16_t* y, int16_t* z);
 // LED Interface (WS2812)
 void led_set_color(uint8_t r, uint8_t g, uint8_t b);
 
-#endif // ADAPTATION_H 
+#endif // ADAPTATION_H

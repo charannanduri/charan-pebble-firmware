@@ -197,7 +197,7 @@ def add_platform_defines(ctx, env):
     elif ctx.is_asterix():
         bit_depth = 1
         platform = 'ASTERIX'
-    elif ctx.is_esp32s3(ctx):
+    elif ctx.is_esp32s3():
         bit_depth = 16
         platform = 'ESP32S3'
     else:

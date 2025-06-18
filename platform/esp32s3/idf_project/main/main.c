@@ -61,7 +61,7 @@ void hsv_to_rgb(uint16_t h, uint8_t s, uint8_t v, uint8_t *r, uint8_t *g, uint8_
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "ESP-IDF Pebble Base Project Starting!");
+    ESP_LOGI(TAG, "ESP-IDF Pebble Base Project Starting for T-Deck Pro!");
 
     // Initialize the adaptation layer (sets up drivers, logging, etc.)
     adaptation_init();
@@ -95,4 +95,4 @@ void app_main(void)
     // For safety, we can make it sleep indefinitely.
     ESP_LOGI(TAG, "app_main yielding control.");
     vTaskSuspend(NULL); // Suspend this task indefinitely
-} 
+}

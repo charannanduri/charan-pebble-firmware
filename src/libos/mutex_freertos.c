@@ -24,13 +24,142 @@
 #ifdef PLATFORM_ESP32S3
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 #else
 #include "FreeRTOS.h"
 #include "semphr.h"
+#include "task.h"
 #endif
 
+// Light mutex implementation for ESP32-S3
+#ifdef PLATFORM_ESP32S3
+// Implementation of light mutex functions for ESP32-S3
+typedef struct {
+    SemaphoreHandle_t handle;
+    bool initialized;
+} LightMutex;
+
+// Handle type for light mutex
+typedef LightMutex* LightMutexHandle_t;
+
+// Initialize a light mutex
+static void light_mutex_init(LightMutex* mutex) {
+    mutex->handle = xSemaphoreCreateMutex();
+    mutex->initialized = (mutex->handle != NULL);
+}
+
+// Lock a light mutex
+static void light_mutex_lock(LightMutex* mutex) {
+    if (!mutex->initialized) {
+        // Auto-initialize if not already initialized
+        light_mutex_init(mutex);
+    }
+    xSemaphoreTake(mutex->handle, portMAX_DELAY);
+}
+
+// Unlock a light mutex  
+static void light_mutex_unlock(LightMutex* mutex) {
+    if (mutex->initialized) {
+        xSemaphoreGive(mutex->handle);
+    }
+}
+
+// Try to lock a light mutex (non-blocking)
+static bool light_mutex_try_lock(LightMutex* mutex) {
+    if (!mutex->initialized) {
+        // Auto-initialize if not already initialized
+        light_mutex_init(mutex);
+    }
+    return xSemaphoreTake(mutex->handle, 0) == pdTRUE;
+}
+
+// Cleanup a light mutex
+static void light_mutex_cleanup(LightMutex* mutex) {
+    if (mutex->initialized) {
+        vSemaphoreDelete(mutex->handle);
+        mutex->initialized = false;
+    }
+}
+
+// FreeRTOS light mutex handle functions needed by mutex_freertos.c
+static LightMutexHandle_t xLightMutexCreate(void) {
+    LightMutex* mutex = (LightMutex*)pvPortMalloc(sizeof(LightMutex));
+    if (mutex) {
+        light_mutex_init(mutex);
+    }
+    return mutex;
+}
+
+static void vLightMutexDelete(LightMutexHandle_t xMutex) {
+    if (xMutex) {
+        light_mutex_cleanup((LightMutex*)xMutex);
+        vPortFree(xMutex);
+    }
+}
+
+static BaseType_t xLightMutexLock(LightMutexHandle_t xMutex, TickType_t xTicksToWait) {
+    LightMutex* mutex = (LightMutex*)xMutex;
+    if (!mutex->initialized) {
+        light_mutex_init(mutex);
+    }
+    return xSemaphoreTake(mutex->handle, xTicksToWait);
+}
+
+static void xLightMutexUnlock(LightMutexHandle_t xMutex) {
+    LightMutex* mutex = (LightMutex*)xMutex;
+    if (mutex->initialized) {
+        xSemaphoreGive(mutex->handle);
+    }
+}
+
+// Recursive mutex functions
+static LightMutexHandle_t xLightMutexCreateRecursive(void) {
+    LightMutex* mutex = (LightMutex*)pvPortMalloc(sizeof(LightMutex));
+    if (mutex) {
+        mutex->handle = xSemaphoreCreateRecursiveMutex();
+        mutex->initialized = (mutex->handle != NULL);
+    }
+    return mutex;
+}
+
+static BaseType_t xLightMutexLockRecursive(LightMutexHandle_t xMutex, TickType_t xTicksToWait) {
+    LightMutex* mutex = (LightMutex*)xMutex;
+    if (!mutex->initialized) {
+        mutex->handle = xSemaphoreCreateRecursiveMutex();
+        mutex->initialized = (mutex->handle != NULL);
+    }
+    return xSemaphoreTakeRecursive(mutex->handle, xTicksToWait);
+}
+
+static void xLightMutexUnlockRecursive(LightMutexHandle_t xMutex) {
+    LightMutex* mutex = (LightMutex*)xMutex;
+    if (mutex->initialized) {
+        xSemaphoreGiveRecursive(mutex->handle);
+    }
+}
+
+static void* xLightMutexGetHolder(LightMutexHandle_t xMutex) {
+    LightMutex* mutex = (LightMutex*)xMutex;
+    if (mutex && mutex->initialized) {
+        return xSemaphoreGetMutexHolder(mutex->handle);
+    }
+    return NULL;
+}
+
+static UBaseType_t uxLightMutexGetRecursiveCallCount(LightMutexHandle_t xMutex) {
+    // This is a bit of a hack since FreeRTOS doesn't expose this directly
+    // For ESP32, we'll just return 1 if the mutex is held by the current task
+    LightMutex* mutex = (LightMutex*)xMutex;
+    if (mutex && mutex->initialized) {
+        if (xSemaphoreGetMutexHolder(mutex->handle) == xTaskGetCurrentTaskHandle()) {
+            return 1;
+        }
+    }
+    return 0;
+}
+#else
 #include "light_mutex.h"
-#include "task.h"
+#endif
 
 #include <string.h>
 
@@ -196,4 +325,3 @@ void mutex_unlock_recursive(PebbleRecursiveMutex * handle) {
   LOG_UNLOCKED(handle->common.lr, uxLightMutexGetRecursiveCallCount(mutex));
   xLightMutexUnlockRecursive(mutex);
 }
-

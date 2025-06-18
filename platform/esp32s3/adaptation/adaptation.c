@@ -55,21 +55,9 @@ void pebble_log_message(pebble_log_level_t level, const char *tag, const char *f
 void adaptation_init(void) {
     ESP_LOGI(TAG, "Initializing adaptation layer");
     
-    // Initialize display
-    display_init();
-    
-    // Initialize buttons
-    gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_INPUT,
-        .pin_bit_mask = (1ULL << BUTTON_UP_PIN) |
-                       (1ULL << BUTTON_SELECT_PIN) |
-                       (1ULL << BUTTON_DOWN_PIN) |
-                       (1ULL << BUTTON_BACK_PIN),
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-    };
-    gpio_config(&io_conf);
+    // Initialize the T-Deck Pro board
+    // This will initialize display, keyboard, trackball, buttons, LED, and battery
+    board_tdeck_pro_init();
     
     // Initialize timer
     timer_init();
@@ -83,48 +71,22 @@ void adaptation_init(void) {
     // Initialize Bluetooth
     bluetooth_init();
 
-    // Initialize LED
-    ESP_LOGI(TAG, "Configuring WS2812 LED strip");
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = LED_GPIO,
-        .max_leds = 1, // Only one LED on the board
-        .flags.invert_out = false,
-    };
-    led_strip_rmt_config_t rmt_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,
-        .resolution_hz = 10 * 1000 * 1000, // 10MHz
-        .mem_block_symbols = 64, // Increase if driving more LEDs
-        .flags.with_dma = false,
-    };
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-    led_strip_clear(led_strip);
-    ESP_LOGI(TAG, "WS2812 LED strip configured");
+    ESP_LOGI(TAG, "Adaptation layer initialized");
 }
 
-// Display interface implementation
+// Display interface implementation is now in display_esp32s3.c
+// These functions are kept here as stubs for backward compatibility
+// and will be removed in the future.
 void display_init(void) {
-    // TODO: Initialize display hardware (SPI, etc.)
-    ESP_LOGI(TAG, "Display initialized");
+    // Implemented in display_esp32s3.c
 }
 
 void adaptation_display_update(AdaptationNextRowCallback nrcb, AdaptationUpdateCompleteCallback uccb) {
-    // TODO: Update display with current framebuffer
-    // This implementation will need to call nrcb to get each row's data
-    // and then call uccb when the update is complete.
-    ESP_LOGW(TAG, "adaptation_display_update: Not implemented!");
-    // Example structure (needs actual hardware implementation):
-    // struct DisplayRow row_data;
-    // while (nrcb(&row_data)) {
-    //     // Send row_data.row_index, row_data.data to display
-    // }
-    // // Signal display update completion if necessary
-    // if (uccb) {
-    //     uccb();
-    // }
+    // Implemented in display_esp32s3.c
 }
 
 void display_clear(void) {
-    // TODO: Clear display
+    // Implemented in display_esp32s3.c
 }
 
 // Button interface implementation
